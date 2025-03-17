@@ -6,17 +6,19 @@ const getContactsController = async (_, res) => {
   try {
     const connection = await connectionPool.getConnection();
     let sql = `SELECT 
-    c.contact_id as contactId, 
-    c.first_name as firstName, 
-    c.last_name as lastName, 
-    c.nick_name as nickName, 
-    c.dob, 
-    GROUP_CONCAT(DISTINCT p.phone_number) AS phoneNumbers,
-    GROUP_CONCAT(DISTINCT e.email) AS emails
+    c.contact_id AS contactId, 
+    c.first_name AS firstName, 
+    c.last_name AS lastName, 
+    c.nick_name AS nickName, 
+    DATE_FORMAT(c.dob, '%Y-%m-%d') AS dob, 
+    COALESCE(GROUP_CONCAT(DISTINCT p.phone_number ORDER BY p.id SEPARATOR ','), '') AS phoneNumbers,
+    COALESCE(GROUP_CONCAT(DISTINCT e.email ORDER BY e.id SEPARATOR ','), '') AS emails
     FROM contacts c
     LEFT JOIN phone_number p ON c.contact_id = p.contact_id
-    LEFT JOIN email e ON c.contact_id = e.contact_id;`;
+    LEFT JOIN email e ON c.contact_id = e.contact_id
+    GROUP BY c.contact_id;`;
     const queryResult = await connection.query(sql);
+    connection.release();
     const [result] = queryResult;
 
     const contactList = result.map((con) => {
@@ -27,13 +29,7 @@ const getContactsController = async (_, res) => {
 
     return res
       .status(200)
-      .json(
-        new ApiResponse(
-          200,
-          { contactList: contactList },
-          "Fetched successfully"
-        )
-      );
+      .json(new ApiResponse(200, contactList, "Fetched successfully"));
   } catch (error) {
     return res.status(500).json(new ApiError(500, error.responce));
   }
@@ -69,7 +65,7 @@ const addContactsController = async (req, res) => {
       .json(
         new ApiResponse(
           200,
-          { contact_id: queryReslut[0].insertId },
+          { contactId: queryReslut[0].insertId },
           "inserted successfully"
         )
       );
@@ -127,7 +123,7 @@ const updateContactController = async (req, res) => {
 };
 
 const deleteContactController = async (req, res) => {
-  const { contactId } = req.body;
+  const { contactId } = req.query;
   try {
     const connection = await connectionPool.getConnection();
     let sql = `DELETE FROM contacts where contact_id=?`;
