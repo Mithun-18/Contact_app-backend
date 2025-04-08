@@ -1,17 +1,17 @@
-import mysql from "mysql2/promise";
-import { dbConfig } from "./config.js";
+import { Sequelize } from "sequelize";
 
-const connectionPool = mysql.createPool({
-  ...dbConfig,
-  connectionLimit: 10,
+const sequelize = new Sequelize(process.env.DB_URI, {
+  pool: {
+    max: 10,
+    acquire: 60000,
+  },
 });
 
 function checkConnection() {
   return new Promise((resolve, reject) => {
-    connectionPool
-      .getConnection()
-      .then((connection) => {
-        connection.release();
+    sequelize
+      .authenticate()
+      .then((_) => {
         resolve();
       })
       .catch((error) => {
@@ -19,4 +19,4 @@ function checkConnection() {
       });
   });
 }
-export { connectionPool, checkConnection };
+export { sequelize, checkConnection };

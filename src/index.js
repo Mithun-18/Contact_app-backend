@@ -1,14 +1,18 @@
 import { app } from "./app.js";
-import { checkConnection } from "./db/index.js";
+import { checkConnection, sequelize } from "./db/index.js";
+import { Contacts, PhoneNumber, Email } from "./models/index.js";
 
 const port = process.env.PORT || 8080;
 
 checkConnection()
   .then(() => {
-    app.listen(port, () => {
-      console.log(`server is running on http://localhost:${port}/`);
+    sequelize.sync({ alter: true }).then(() => {
+      app.listen(port, () => {
+        console.log(`server is running on http://localhost:${port}/`);
+      });
     });
   })
   .catch((_) => {
+    console.log("Connection Lost...!");
     process.exit(1);
   });
