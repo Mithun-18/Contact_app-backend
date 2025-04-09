@@ -1,31 +1,41 @@
-import { connectionPool } from "../db/index.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import { Contacts, Email, PhoneNumber } from "../models/index.js";
+import { sequelize } from "../db/index.js";
 
 const getContactsController = async (_, res) => {
   try {
-    const connection = await connectionPool.getConnection();
-    let sql = `SELECT 
-    c.contact_id AS contactId, 
-    c.first_name AS firstName, 
-    c.last_name AS lastName, 
-    c.nick_name AS nickName, 
-    DATE_FORMAT(c.dob, '%Y-%m-%d') AS dob, 
-    COALESCE(GROUP_CONCAT(DISTINCT p.phone_number ORDER BY p.id SEPARATOR ','), '') AS phoneNumbers,
-    COALESCE(GROUP_CONCAT(DISTINCT e.email ORDER BY e.id SEPARATOR ','), '') AS emails
-    FROM contacts c
-    LEFT JOIN phone_number p ON c.contact_id = p.contact_id
-    LEFT JOIN email e ON c.contact_id = e.contact_id
-    GROUP BY c.contact_id;`;
-    const queryResult = await connection.query(sql);
-    connection.release();
-    const [result] = queryResult;
-
-    const contactList = result.map((con) => {
-      con.phoneNumbers = con.phoneNumbers.split(",").map(Number);
-      con.emails = con.emails.split(",");
-      return con;
+    const contacts = await Contacts.findAll({
+      include: [
+        {
+          model: PhoneNumber,
+          attributes: ["phoneNumber"],
+        },
+        {
+          model: Email,
+          attributes: ["email"],
+        },
+      ],
+      attributes: {
+        include: [
+          [
+            sequelize.fn("DATE_FORMAT", sequelize.col("dob"), "%Y-%m-%d"),
+            "dob",
+          ],
+        ],
+        exclude: ["dob"],
+      },
     });
+
+    const contactList = contacts.map((con) => ({
+      contactId: con.contactId,
+      firstName: con.firstName,
+      lastName: con.lastName,
+      nickName: con.nickName,
+      dob: con.dob,
+      phoneNumbers: con.PhoneNumbers.map((p) => p.phoneNumber),
+      emails: con.Emails.map((e) => e.email),
+    }));
 
     return res
       .status(200)
@@ -39,33 +49,35 @@ const addContactsController = async (req, res) => {
   const { contact } = req.body;
 
   try {
-    const connection = await connectionPool.getConnection();
+    const con = await Contacts.create({
+      firstName: contact.firstName,
+      lastName: contact.lastName,
+      nickName: contact.nickName,
+      dob: contact.dob,
+    });
 
-    let sql = `INSERT INTO contacts(first_name,last_name,nick_name,dob) VALUES(?,?,?,?)`;
-    const values = [
-      contact.firstName,
-      contact.lastName,
-      contact.nickName,
-      contact.dob,
-    ];
-    const queryReslut = await connection.query(sql, values);
-
-    sql = `INSERT INTO phone_number(contact_id,phone_number) VALUES(${queryReslut[0].insertId},?)`;
-    contact.phoneNumbers.map(async (ph) => await connection.query(sql, [ph]));
-
-    sql = `INSERT INTO email(contact_id,email) VALUES(?,?)`;
-    contact.emails.map(
-      async (em) => await connection.query(sql, [queryReslut[0].insertId, em])
+    contact.phoneNumbers.map(
+      async (ph) =>
+        await PhoneNumber.create({
+          contactId: con.contactId,
+          phoneNumber: ph,
+        })
     );
 
-    connection.release();
+    contact.emails.map(
+      async (em) =>
+        await Email.create({
+          contactId: con.contactId,
+          email: em,
+        })
+    );
 
     return res
       .status(200)
       .json(
         new ApiResponse(
           200,
-          { contactId: queryReslut[0].insertId },
+          { contactId: con.contactId },
           "inserted successfully"
         )
       );
@@ -77,35 +89,41 @@ const addContactsController = async (req, res) => {
 const updateContactController = async (req, res) => {
   const { contact } = req.body;
   try {
-    const connection = await connectionPool.getConnection();
-    let sql = `UPDATE contacts
-             SET first_name=?, last_name=?, nick_name=?, dob=?
-             WHERE contact_id=?
-            `;
-    const values = [
-      contact.firstName,
-      contact.lastName,
-      contact.nickName,
-      contact.dob,
-      contact.contactId,
-    ];
+    const con = await Contacts.findByPk(contact.contactId);
 
-    await connection.query(sql, values);
+    con.update({
+      firstName: contact.firstName,
+      lastName: contact.lastName,
+      nickName: contact.nickName,
+      dob: contact.dob,
+    });
 
-    sql = `DELETE FROM phone_number where contact_id=?`;
-    await connection.query(sql, [contact.contactId]);
+    await PhoneNumber.destroy({
+      where: {
+        contactId: contact.contactId,
+      },
+    });
 
-    sql = `DELETE FROM email where contact_id=?`;
-    await connection.query(sql, [contact.contactId]);
+    await Email.destroy({
+      where: {
+        contactId: contact.contactId,
+      },
+    });
 
-    sql = `INSERT INTO phone_number(contact_id,phone_number) VALUES(?,?)`;
     contact.phoneNumbers.map(
-      async (ph) => await connection.query(sql, [contact.contactId, ph])
+      async (ph) =>
+        await PhoneNumber.create({
+          contactId: contact.contactId,
+          phoneNumber: ph,
+        })
     );
 
-    sql = `INSERT INTO email(contact_id,email) VALUES(?,?)`;
     contact.emails.map(
-      async (em) => await connection.query(sql, [contact.contactId, em])
+      async (em) =>
+        await Email.create({
+          contactId: contact.contactId,
+          email: em,
+        })
     );
 
     return res
@@ -125,11 +143,11 @@ const updateContactController = async (req, res) => {
 const deleteContactController = async (req, res) => {
   const { contactId } = req.query;
   try {
-    const connection = await connectionPool.getConnection();
-    let sql = `DELETE FROM contacts where contact_id=?`;
-    await connection.query(sql, [contactId]);
-    connection.release();
-
+    await Contacts.destroy({
+      where: {
+        contactId: contactId,
+      },
+    });
     return res
       .status(200)
       .json(
