@@ -1,21 +1,11 @@
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import { Contacts, Email, PhoneNumber } from "../models/index.js";
+import { Contacts } from "../models/index.js";
 import { sequelize } from "../db/index.js";
 
 const getContactsController = async (_, res) => {
   try {
     const contacts = await Contacts.findAll({
-      include: [
-        {
-          model: PhoneNumber,
-          attributes: ["phoneNumber"],
-        },
-        {
-          model: Email,
-          attributes: ["email"],
-        },
-      ],
       attributes: {
         include: [
           [
@@ -33,8 +23,8 @@ const getContactsController = async (_, res) => {
       lastName: con.lastName,
       nickName: con.nickName,
       dob: con.dob,
-      phoneNumbers: con.PhoneNumbers.map((p) => p.phoneNumber),
-      emails: con.Emails.map((e) => e.email),
+      phoneNumbers: con.phoneNumbers ? JSON.parse(con.phoneNumbers) : [],
+      emails: con.emails ? JSON.parse(con.emails) : [],
     }));
 
     return res
@@ -54,23 +44,9 @@ const addContactsController = async (req, res) => {
       lastName: contact.lastName,
       nickName: contact.nickName,
       dob: contact.dob,
+      phoneNumbers: contact.phoneNumbers,
+      emails: contact.emails,
     });
-
-    contact.phoneNumbers.map(
-      async (ph) =>
-        await PhoneNumber.create({
-          contactId: con.contactId,
-          phoneNumber: ph,
-        })
-    );
-
-    contact.emails.map(
-      async (em) =>
-        await Email.create({
-          contactId: con.contactId,
-          email: em,
-        })
-    );
 
     return res
       .status(200)
@@ -96,35 +72,9 @@ const updateContactController = async (req, res) => {
       lastName: contact.lastName,
       nickName: contact.nickName,
       dob: contact.dob,
+      phoneNumbers: contact.phoneNumbers,
+      emails: contact.emails,
     });
-
-    await PhoneNumber.destroy({
-      where: {
-        contactId: contact.contactId,
-      },
-    });
-
-    await Email.destroy({
-      where: {
-        contactId: contact.contactId,
-      },
-    });
-
-    contact.phoneNumbers.map(
-      async (ph) =>
-        await PhoneNumber.create({
-          contactId: contact.contactId,
-          phoneNumber: ph,
-        })
-    );
-
-    contact.emails.map(
-      async (em) =>
-        await Email.create({
-          contactId: contact.contactId,
-          email: em,
-        })
-    );
 
     return res
       .status(200)

@@ -22,6 +22,14 @@ Contacts.init(
     dob: {
       type: DataTypes.DATE,
     },
+    phoneNumbers: {
+      type: DataTypes.JSON,
+      defaultValue: [],
+    },
+    emails: {
+      type: DataTypes.JSON,
+      defaultValue: [],
+    },
   },
   {
     sequelize,
@@ -29,76 +37,4 @@ Contacts.init(
   }
 );
 
-class PhoneNumber extends Model {}
-
-PhoneNumber.init(
-  {
-    id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true,
-    },
-    contactId: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: Contacts,
-        key: "contactId",
-      },
-      onDelete: "CASCADE",
-    },
-    phoneNumber: {
-      type: DataTypes.BIGINT(10),
-    },
-  },
-  {
-    sequelize,
-    modelName: "PhoneNumbers",
-  }
-);
-
-Contacts.hasMany(PhoneNumber, {
-  foreignKey: "contactId",
-  onDelete: "CASCADE",
-});
-
-PhoneNumber.belongsTo(Contacts, {
-  foreignKey: "contactId",
-});
-
-class Email extends Model {}
-
-Email.init(
-  {
-    id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true,
-    },
-    contactId: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: Contacts,
-        key: "contactId",
-      },
-      onDelete: "CASCADE",
-    },
-    email: {
-      type: DataTypes.STRING,
-    },
-  },
-  {
-    sequelize,
-    modelName: "Emails",
-  }
-);
-
-Contacts.hasMany(Email, {
-  foreignKey: "contactId",
-  onDelete: "CASCADE",
-});
-
-Email.belongsTo(Contacts, {
-  foreignKey: "contactId",
-});
-
-export { Contacts, PhoneNumber, Email };
+export { Contacts };
